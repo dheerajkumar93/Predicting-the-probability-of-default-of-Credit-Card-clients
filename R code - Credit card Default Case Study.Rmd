@@ -1,0 +1,949 @@
+---
+title: "Credit Card Default Case Study"
+author: "Dheeraj Kumar"
+date: "2/13/2022"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+## R Markdown
+
+# Credit card Default Case Study
+
+## Importing libraries 
+
+```{r}
+
+#install.packages("ggplot2")
+#install.packages("dplyr")
+#install.packages("psych")
+#install.packages("MASS")
+#install.packages("tidyverse")
+#install.packages("corrplot")
+#install.packages("leaps")
+#install.packages("rpart")
+#install.packages("mgcv")
+#install.packages("glmnet")
+#install.packages("boot")
+#install.packages("caret")
+#install.packages("rpart.plot")
+#install.packages("tree")
+#install.packages("plotmo")
+#install.packages("ROCR")
+#install.packages("PRROC")
+#install.packages("pROC")
+
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(psych)
+library(MASS)
+library(tidyverse)
+library(corrplot)
+library(leaps)
+library(rpart)
+library(mgcv)
+library(glmnet)
+library(boot)
+library(caret)
+library(rpart.plot)
+library(tree)
+library(plotmo)
+library(ROCR)
+library(PRROC)
+library(pROC)
+
+```
+
+## Importing the dataset
+
+```{r}
+credit_card_data <- read.csv("D:/UC/Classes/Spring/Data Mining 1/Credit Card Data/default_of_credit_card_clients.csv")
+```
+
+## Checking head
+
+```{r}
+head(credit_card_data)
+```
+
+## Renaming target variable
+
+```{r}
+credit_card_data <- rename(credit_card_data, default_payment_next_month = default.payment.next.month)
+```
+
+## Checking structure of dataset
+
+```{r}
+str(credit_card_data)
+```
+
+## Checking dimensions of dataset
+
+```{r}
+dim(credit_card_data)
+```
+
+## Checking for any missing values
+
+```{r}
+sum(is.na(credit_card_data)) 
+```
+
+## Checking statistics on variables
+
+```{r}
+summary(credit_card_data)
+```
+
+## Converting required variables to factors
+
+```{r}
+credit_card_data$SEX <- as.factor(credit_card_data$SEX)
+credit_card_data$MARRIAGE <- as.factor(credit_card_data$MARRIAGE)
+credit_card_data$EDUCATION <- as.factor(credit_card_data$EDUCATION)
+credit_card_data$default_payment_next_month <- as.factor(credit_card_data$default_payment_next_month)
+credit_card_data$PAY_0 <- as.factor(credit_card_data$PAY_0)
+credit_card_data$PAY_2 <- as.factor(credit_card_data$PAY_2)
+credit_card_data$PAY_3 <- as.factor(credit_card_data$PAY_3)
+credit_card_data$PAY_4 <- as.factor(credit_card_data$PAY_4)
+credit_card_data$PAY_5 <- as.factor(credit_card_data$PAY_5)
+credit_card_data$PAY_6 <- as.factor(credit_card_data$PAY_6)
+```
+
+# Dropping ID column from dataset
+
+```{r}
+credit_card_data = subset(credit_card_data, select = -c(ID))
+```
+
+## Setting unique seed
+
+```{r}
+set.seed(14283873)
+```
+
+## Splitting dataset into Train and Test
+
+```{r}
+index <- sample(nrow(credit_card_data), nrow(credit_card_data) * 0.80)
+```
+
+## Creating Train and Test datasets
+
+```{r}
+credit_card_data_train <- credit_card_data[index, ]
+credit_card_data_test <- credit_card_data[-index, ]
+```
+
+## Checking dimensions of Train and Test dataset
+
+```{r}
+dim(credit_card_data_train)  ## 24000,24
+
+dim(credit_card_data_test)   ## 6000,24
+
+```
+
+#------------ A-1. Analysis with 80% Training Data ---------------------#
+
+## Performing EDA
+
+### Countplot of default_payment_next_month
+
+```{r}
+ggplot(credit_card_data_train,aes(default_payment_next_month))+geom_bar()+ggtitle("credit card default distribution")
+```
+
+## Distribution of default_payment_next_month vs SEX
+
+```{r}
+ggplot(credit_card_data_train,aes(SEX))+geom_bar(aes(fill=default_payment_next_month))+ggtitle("Credit Default distribution among SEX")
+```
+
+## Distribution of default_payment_next_month vs MARRIAGE
+
+```{r}
+ggplot(credit_card_data_train,aes(MARRIAGE))+geom_bar(aes(fill=default_payment_next_month))+ggtitle("Credit Default distribution among MARRIAGE")
+```
+
+## Distribution of default_payment_next_month vs EDUCATION
+
+```{r}
+ggplot(credit_card_data_train,aes(EDUCATION))+geom_bar(aes(fill=default_payment_next_month))+ggtitle("credit card distribution among EDUCATION")
+```
+
+## Distribution of default_payment_next_month vs PAY_0
+
+```{r}
+ggplot(credit_card_data_train,aes(PAY_0))+geom_bar(aes(fill=default_payment_next_month))+ggtitle("credit card distribution among PAY_0")
+```
+
+## Distribution of default_payment_next_month vs AGE
+
+```{r}
+ggplot(credit_card_data_train,aes(AGE))+geom_bar(aes(fill=default_payment_next_month))+ggtitle("credit card distribution among AGE")
+```
+
+
+#------------ A-2. Logistic Regression and Variable Selection ---------------------#
+
+##----------------- Part 1 -----------------##
+
+##----------------- Full Model -----------------##
+
+## Logistic Regression with full model
+
+```{r}
+full.glm <- glm(default_payment_next_month ~ ., family=binomial, data = credit_card_data_train)
+full.glm.summary <- summary(full.glm)
+full.glm.summary
+```
+
+## Displaying coefficients of the full model
+
+```{r}
+data.frame(coef = round(full.glm$coefficients,2))
+AIC(full.glm) # 20997.55
+BIC(full.glm) # 21668.67
+```
+
+## Calculating in-sample residual deviance
+
+```{r}
+full.glm$deviance  # 20831.55
+```
+
+# Calculating Model mean residual deviance (in-sample)
+
+```{r}
+full.glm$dev/full.glm$df.residual # 0.8709933
+```
+
+# Plotting histogram for full model
+
+```{r}
+hist(predict(full.glm))
+```
+
+##----------------- Null Model -----------------##
+
+## Logistic Regression with Null model
+
+```{r}
+null.glm=glm(default_payment_next_month ~ 1, family=binomial, data=credit_card_data_train)
+null.glm.summary <- summary(null.glm)
+null.glm.summary
+```
+
+## Displaying coefficients of the null model
+
+```{r}
+data.frame(coef = round(null.glm$coefficients,2))
+AIC(null.glm) # 25497.03
+BIC(null.glm) # 25505.12
+```
+
+## Calculating in-sample residual deviance
+
+```{r}
+null.glm$deviance  # 25495.03
+```
+
+# Calculating Model mean residual deviance (in-sample)
+
+```{r}
+null.glm$dev/null.glm$df.residual # 1.062337
+```
+
+# Plotting histogram for full model
+
+```{r}
+hist(predict(null.glm))
+```
+
+##----------------- Two Variable Model with EDUCATION and PAY_0 -----------------##
+
+```{r}
+two_var.glm <- glm(default_payment_next_month ~ credit_card_data_train$EDUCATION + credit_card_data_train$PAY_0, family=binomial, data=credit_card_data_train)
+two_var.glm.summary <- summary(two_var.glm)
+two_var.glm.summary
+```
+
+## Displaying coefficients of the two variable model
+
+```{r}
+data.frame(coef = round(two_var.glm$coefficients,2))
+AIC(two_var.glm) # 21741.37
+BIC(two_var.glm) # 21878.82
+```
+
+## Calculating in-sample residual deviance
+
+```{r}
+two_var.glm$deviance  # 21707.37
+```
+
+# Calculating Model mean residual deviance (in-sample)
+
+```{r}
+two_var.glm$dev/two_var.glm$df.residual # 0.9051147
+```
+
+##----------------- Part 2 -----------------##
+
+## Performing stepwise variable selection with AIC and BIC
+
+```{r}
+credit_default_glm_back <- step(full.glm) 
+summary(credit_default_glm_back)
+
+credit_default_glm_back$deviance # 20833.88
+
+AIC(credit_default_glm_back) # 20991.88
+
+BIC(credit_default_glm_back) # 21630.66
+```
+
+# Calculating Model mean residual deviance (in-sample)
+
+```{r}
+credit_default_glm_back$dev/credit_default_glm_back$df.residual # 0.8709453
+```
+
+#------------ Stepwise variable selection using AIC ------------#
+```{r}
+model_stepwise_AIC <- step(null.glm, scope = list(lower= null.glm, upper= full.glm), direction = "both", k = 2)
+
+# Lowest AIC = 20991.88
+#default_payment_next_month ~ PAY_0 + PAY_3 + LIMIT_BAL + PAY_5 + 
+#  PAY_AMT1 + MARRIAGE + EDUCATION + BILL_AMT2 + PAY_6 + PAY_4 + 
+#  PAY_AMT2 + SEX + PAY_2 + PAY_AMT5 + PAY_AMT3 + PAY_AMT6 + 
+#  AGE + BILL_AMT1 + BILL_AMT3
+
+```
+
+## Running model with selected variables
+
+```{r}
+model_stepwise_AIC.glm <- glm(default_payment_next_month ~ PAY_0 + PAY_3 + LIMIT_BAL + PAY_5 + 
+                                PAY_AMT1 + MARRIAGE + EDUCATION + BILL_AMT2 + PAY_6 + PAY_4 + 
+                                PAY_AMT2 + SEX + PAY_2 + PAY_AMT5 + PAY_AMT3 + PAY_AMT6 + 
+                                AGE + BILL_AMT1 + BILL_AMT3, family=binomial, data=credit_card_data_train)
+
+model_stepwise_AIC.glm_summary<-summary(model_stepwise_AIC.glm)
+
+model_stepwise_AIC.glm_summary
+
+AIC(model_stepwise_AIC.glm) # 20991.88
+
+BIC(model_stepwise_AIC.glm) # 21630.66
+
+model_stepwise_AIC.glm$deviance # 20833.88
+```
+
+# Calculating Model mean residual deviance (in-sample)
+
+```{r}
+model_stepwise_AIC.glm$dev/model_stepwise_AIC.glm$df.residual # 0.8709453
+```
+
+
+#------------ Stepwise variable selection using BIC ------------#
+
+```{r}
+model_stepwise_BIC <- step(null.glm, scope = list(lower= null.glm, upper= full.glm), direction = "both", k = log(nrow(credit_card_data_train)))
+
+#Lowest AIC = 21385.83
+#default_payment_next_month ~ PAY_0 + LIMIT_BAL + PAY_5 + PAY_AMT2 + 
+#  PAY_AMT1 + BILL_AMT3 + MARRIAGE + SEX + PAY_AMT3
+
+```
+
+```{r}
+model_stepwise_BIC.glm <- glm(default_payment_next_month ~ PAY_0 + LIMIT_BAL + PAY_5 + PAY_AMT2 + 
+                               PAY_AMT1 + BILL_AMT3 + MARRIAGE + SEX + PAY_AMT3, family=binomial, data=credit_card_data_train)
+
+model_stepwise_BIC.glm_summary<-summary(model_stepwise_BIC.glm)
+
+model_stepwise_BIC.glm_summary
+
+AIC(model_stepwise_BIC.glm) # 21151.34
+
+BIC(model_stepwise_BIC.glm) # 21385.83
+
+model_stepwise_BIC.glm$deviance # 21093.34
+```
+
+# Calculating Model mean residual deviance (in-sample)
+
+```{r}
+model_stepwise_BIC.glm$dev/model_stepwise_BIC.glm$df.residual # 0.8799525
+```
+
+
+##----------------- Part 3 -----------------##
+
+## Performing LASSO variable selection
+
+## Creating dummy variable for object datatypes
+
+```{r}
+dummy <- model.matrix(~ ., data = credit_card_data)
+```
+
+# Checking head of dummy matrix
+
+```{r}
+
+head(dummy)
+
+credit_data_lasso <- data.frame(dummy[,-1])
+
+set.seed(14283873)
+
+index <- sample(nrow(credit_card_data),nrow(credit_card_data)*0.80)
+
+credit_card_data_train_Y = credit_data_lasso[index,"default_payment_next_month1"]
+
+credit_card_data_test_Y = credit_data_lasso[-index,"default_payment_next_month1"]
+
+credit_card_data_train_X = as.matrix(dplyr::select(credit_data_lasso, -default_payment_next_month1)[index,])
+
+credit_card_data_test_X = as.matrix(dplyr::select(credit_data_lasso, -default_payment_next_month1)[-index,])
+
+```
+
+## Checking dimensions
+
+```{r}
+str(credit_card_data_train_X)
+str(credit_card_data_train_Y)
+str(credit_card_data_test_X)
+str(credit_card_data_test_Y)
+```
+
+#LASSO
+
+```{r}
+library(glmnet)
+```
+
+```{r}
+credit_default_lasso <- glmnet(x=credit_card_data_train_X, y=credit_card_data_train_Y, family = "binomial")
+```
+
+## Performing cross-validation to determine the shrinkage parameter
+
+```{r}
+credit_lasso_cv <- cv.glmnet(x=credit_card_data_train_X, y=credit_card_data_train_Y, family = "binomial", type.measure = "class")
+plot(credit_lasso_cv)
+```
+
+## Calculating coefficients using Lambda min
+
+```{r}
+coef(credit_default_lasso, s=credit_lasso_cv$lambda.min)
+
+lasso.min.glm <- glm(default_payment_next_month ~ LIMIT_BAL + SEX + EDUCATION +
+                       MARRIAGE +  AGE + PAY_0 + PAY_2 + PAY_3 + PAY_4 + PAY_5 +PAY_6 +
+                       BILL_AMT1 + BILL_AMT2 + BILL_AMT3 + BILL_AMT4 + BILL_AMT5 + BILL_AMT6 +
+                       PAY_AMT1 + PAY_AMT2 + PAY_AMT3 + PAY_AMT4 + PAY_AMT5 + PAY_AMT6, family = "binomial", data=credit_card_data_train)
+```
+
+```{r}
+lasso.min.glm_summary<-summary(lasso.min.glm)
+
+lasso.min.glm_summary
+```
+
+```{r}
+AIC(lasso.min.glm) # 20997.55
+
+BIC(lasso.min.glm) # 21668.67
+
+lasso.min.glm$deviance # 20831.55
+```
+
+# Calculating Model mean residual deviance (in-sample)
+
+```{r}
+lasso.min.glm$dev/lasso.min.glm$df.residual # 0.8709933
+```
+
+## Calculating coefficients using Lambda 1se
+```{r}
+coef(credit_default_lasso, s=credit_lasso_cv$lambda.1se)
+
+lasso.1se.glm <- glm(default_payment_next_month ~ LIMIT_BAL + SEX + EDUCATION +
+                       MARRIAGE +  AGE + PAY_0 + PAY_2 + PAY_3 + PAY_4 + PAY_5 +PAY_6 +
+                       PAY_AMT1 + PAY_AMT2 + PAY_AMT3 + PAY_AMT5 + PAY_AMT6, family = "binomial", data=credit_card_data_train)
+```
+
+```{r}
+lasso.1se.glm_summary<-summary(lasso.1se.glm)
+
+lasso.1se.glm_summary
+```
+
+```{r}
+AIC(lasso.1se.glm) # 21023.12
+
+BIC(lasso.1se.glm) # 21637.65
+
+lasso.1se.glm$deviance # 20871.12
+
+# Calculating Model mean residual deviance (in-sample)
+
+lasso.1se.glm$dev/lasso.1se.glm$df.residual # 0.8723928
+```
+
+## Plotting graph for LASSO
+
+#install.packages('glmnet')
+```{r}
+#library(glmnet)
+```
+
+```{r}
+str(credit_card_data_train)
+
+## Converting to integer for plotting 
+
+credit_card_data_train$SEX <- as.integer(credit_card_data_train$SEX)
+credit_card_data_train$MARRIAGE <- as.integer(credit_card_data_train$MARRIAGE)
+credit_card_data_train$EDUCATION <- as.integer(credit_card_data_train$EDUCATION)
+credit_card_data_train$default_payment_next_month <- as.integer(credit_card_data_train$default_payment_next_month)
+credit_card_data_train$PAY_0 <- as.integer(credit_card_data_train$PAY_0)
+credit_card_data_train$PAY_2 <- as.integer(credit_card_data_train$PAY_2)
+credit_card_data_train$PAY_3 <- as.integer(credit_card_data_train$PAY_3)
+credit_card_data_train$PAY_4 <- as.integer(credit_card_data_train$PAY_4)
+credit_card_data_train$PAY_5 <- as.integer(credit_card_data_train$PAY_5)
+credit_card_data_train$PAY_6 <- as.integer(credit_card_data_train$PAY_6)
+```
+
+## Checking structure to confirm conversion
+
+```{r}
+str(credit_card_data_train)
+```
+
+## performing lasso
+
+```{r}
+lasso_fit <- glmnet(x = as.matrix(credit_card_data_train[, -c(which(colnames(credit_card_data_train)=='default_payment_next_month'))]), y = credit_card_data_train$default_payment_next_month, alpha = 1)
+
+#lambda = 0.5
+coef(lasso_fit,s=0.5)
+
+#lambda = 1
+coef(lasso_fit,s=1)
+
+plot(lasso_fit, xvar = "lambda", label = TRUE)
+```
+
+```{r}
+library(plotmo)
+```
+
+```{r}
+plot_glmnet(lasso_fit, label=8, xvar ="norm")  # label the 8 biggest final coefs
+```
+
+#use 5-fold cross validation to pick lambda
+
+```{r}
+cv_lasso_fit <- cv.glmnet(x = as.matrix(credit_card_data_train[, -c(which(colnames(credit_card_data_train)=='default_payment_next_month'))]), y = credit_card_data_train$default_payment_next_month, alpha = 1, nfolds = 5)
+plot(cv_lasso_fit)
+cv_lasso_fit$lambda.min
+```
+
+#-------------------------------Credit Card Default Case Study Part AB#-------------------------------
+
+
+head(credit_card_data_train)
+## Best Logistic Regression model chosen was with Stepwise BIC - below are the variables
+
+```{r}
+#model_stepwise_BIC.glm <- glm(default_payment_next_month ~ PAY_0 + LIMIT_BAL + PAY_5 + PAY_AMT2 + 
+#                                PAY_AMT1 + BILL_AMT3 + MARRIAGE + SEX + PAY_AMT3, family=binomial, #data=credit_card_data_train)
+```
+
+### Drawing histogram of the prediction obtained using best model
+
+```{r}
+hist(predict(model_stepwise_BIC.glm))
+pred_step_BIC_train <- predict(model_stepwise_BIC.glm ,type="response")
+hist(pred_step_BIC_train)
+```
+
+### Drawing ROC curve
+
+#install.packages("PRROC")
+
+```{r}
+#library(ROCR)
+#library(PRROC)
+```
+
+```{r}
+pred <- prediction(pred_step_BIC_train, credit_card_data_train$default_payment_next_month)
+perf <- performance(pred, "tpr", "fpr")
+plot(perf, colorize=TRUE, main="ROC Curve - In sample")
+```
+
+### Reporting the AUC
+
+```{r}
+unlist(slot(performance(pred, "auc"), "y.values")) # 0.7633874
+```
+
+### Drawing the 2x2 Misclassification Rate Table,  Default Cutoff Probability = 1/2 and Symmetric cost
+
+```{r}
+table(credit_card_data_train$default_payment_next_month, (pred_step_BIC_train > 0.5)*1, dnn=c("Actual values","Predicted values"))
+```
+
+#Symmetric cost
+
+```{r}
+pcut <- 1/2 
+cost1 <- function(r, pi){
+  mean(((r==0)&(pi>pcut)) | ((r==1)&(pi<pcut)))
+}
+
+cost1(r = credit_card_data_train$default_payment_next_month, pi = pred_step_BIC_train) # 0.179875
+
+table(credit_card_data_train$default_payment_next_month, (pred_step_BIC_train > 0.5)*1, dnn=c("Actual values","Predicted values"))
+```
+
+### Drawing the 2x2 Misclassification Rate Table,  Default Cutoff Probability = 1/6 and Symmetric cost
+
+```{r}
+pcut <- 1/(5+1) # cost ratio 5:1
+cost2 <- function(r, pi){
+  weight1 <- 5
+  weight0 <- 1
+  c1 <- (r==1)&(pi<pcut) # logical vector - true if actual 1 but predict 0
+  c0 <-(r==0)&(pi>pcut) # logical vector - true if actual 0 but predict 1
+  return(mean(weight1*c1+weight0*c0))}
+
+cost2(r = credit_card_data_train$default_payment_next_month, pi = pred_step_BIC_train) # 0.5890417
+
+table(credit_card_data_train$default_payment_next_month, (pred_step_BIC_train > 0.167)*1, dnn=c("Actual values","Predicted values"))
+```
+
+#------------ Out of Sample Testing ------------#
+
+### Testing on remaining 20% of the data
+
+```{r}
+pred_step_BIC_test<- predict(model_stepwise_BIC.glm, credit_card_data_test, type="response")
+```
+
+### Out-of-sample ROC curve
+
+```{r}
+pred_test <- prediction(pred_step_BIC_test, credit_card_data_test$default_payment_next_month)
+perf_test <- performance(pred, "tpr", "fpr")
+plot(perf_test, colorize=TRUE, main="ROC Curve - Out of sample")
+```
+
+### Reporting the AUC
+
+```{r}
+unlist(slot(performance(pred_test, "auc"), "y.values")) # 0.7574783
+```
+
+### Drawing the 2x2 Misclassification Rate Table
+
+```{r}
+pcut <- 1/2 
+cost3 <- function(r, pi){
+  mean(((r==0)&(pi>pcut)) | ((r==1)&(pi<pcut)))
+}
+
+cost3(r = credit_card_data_test$default_payment_next_month, pi = pred_step_BIC_test) # 0.1751667
+
+table(credit_card_data_test$default_payment_next_month, (pred_step_BIC_test > 0.5)*1, dnn=c("Actual values","Predicted values"))
+```
+
+### Drawing the 2x2 Misclassification Rate Table,  Default Cutoff Probability = 1/6 and Symmetric cost
+
+```{r}
+pcut <- 1/(5+1) # cost ratio 5:1
+cost4 <- function(r, pi){
+  weight1 <- 5
+  weight0 <- 1
+  c1 <- (r==1)&(pi<pcut) # logical vector - true if actual 1 but predict 0
+  c0 <-(r==0)&(pi>pcut) # logical vector - true if actual 0 but predict 1
+  return(mean(weight1*c1+weight0*c0))}
+
+cost4(r = credit_card_data_test$default_payment_next_month, pi = pred_step_BIC_test) # 0.565
+
+table(credit_card_data_test$default_payment_next_month, (pred_step_BIC_test > 0.167)*1, dnn=c("Actual values","Predicted values"))
+```
+
+### Performing 5-Fold Cross Validation
+
+```{r}
+library(MASS)
+library(boot)
+```
+
+### Importing the dataset with a new name
+
+```{r}
+credit_card_data_cv <- read.csv("D:/UC/Classes/Spring/Data Mining 1/Credit Card Data/default_of_credit_card_clients.csv")
+
+credit_card_data_cv <- rename(credit_card_data_cv, default_payment_next_month = default.payment.next.month)
+
+credit_card_data_cv = subset(credit_card_data_cv, select = -c(ID))
+```
+
+```{r}
+#install.packages("caret")
+```
+```{r}
+#install.packages("ROCR")
+```
+```{r}
+#install.packages("pROC")
+```
+
+```{r}
+library(caret)
+library(ROCR)
+library(pROC)
+```
+
+### ----------------- AUC on full model without cross validation
+
+```{r}
+model_full_wcv <- glm(default_payment_next_month ~ ., family=binomial, data=credit_card_data_cv)
+```
+
+### print cv scores
+
+```{r}
+log_predict_full_wcv <- predict(model_full_wcv, newdata = credit_card_data_cv, type = "response")
+log_predict_full_wcv <- ifelse(log_predict_full_wcv > 0.5,1,0)
+auc(credit_card_data_cv$default_payment_next_month,log_predict_full_wcv) # 0.6067
+```
+
+```{r}
+pcut <- 1/(5+1) # cost ratio 5:1
+cost_full_wcv <- function(r, pi){
+  weight1 <- 5
+  weight0 <- 1
+  c1 <- (r==1)&(pi<pcut) # logical vector - true if actual 1 but predict 0
+  c0 <-(r==0)&(pi>pcut) # logical vector - true if actual 0 but predict 1
+  return(mean(weight1*c1+weight0*c0))}
+
+cost_full_wcv(r = credit_card_data_cv$default_payment_next_month, pi = log_predict_full_wcv) # 0.8611667
+```
+
+### Calculating symmetric score - symmetric
+
+```{r}
+pcut <- 1/2 
+cost_full_s <- function(r, pi){
+  mean(((r==0)&(pi>pcut)) | ((r==1)&(pi<pcut)))
+}
+
+cost_full_s(r = credit_card_data_cv$default_payment_next_month, pi = log_predict_full_wcv) # 0.189
+```
+
+### ----------------- AUC on full model with cross validation
+
+### define training control
+
+```{r}
+train_control <- trainControl(method = "cv", number = 5)
+```
+
+### train the model on training set
+
+```{r}
+model_full <- train(default_payment_next_month ~ .,
+               data = credit_card_data_cv,
+               trControl = train_control,
+               method = "glm",
+               family=binomial(link="logit"), na.action=na.omit)
+```
+
+### print cv scores
+
+```{r}
+log_predict_full <- predict(model_full, newdata = credit_card_data_cv)
+log_predict_full <- ifelse(log_predict_full > 0.5,1,0)
+auc(credit_card_data_cv$default_payment_next_month,log_predict_full) # 0.6063
+```
+
+### Calculating symmetric score - asymmetric
+
+```{r}
+pcut <- 1/(5+1) # cost ratio 5:1
+cost_full <- function(r, pi){
+  weight1 <- 5
+  weight0 <- 1
+  c1 <- (r==1)&(pi<pcut) # logical vector - true if actual 1 but predict 0
+  c0 <-(r==0)&(pi>pcut) # logical vector - true if actual 0 but predict 1
+  return(mean(weight1*c1+weight0*c0))}
+
+cost_full(r = credit_card_data_cv$default_payment_next_month, pi = log_predict_full) # 0.862
+```
+
+### Calculating symmetric score - symmetric
+
+```{r}
+pcut <- 1/2 
+cost_full_s <- function(r, pi){
+  mean(((r==0)&(pi>pcut)) | ((r==1)&(pi<pcut)))
+}
+
+cost_full_s(r = credit_card_data_cv$default_payment_next_month, pi = log_predict_full) # 0.189
+```
+
+
+## Training the model using Stepwise BIC 
+
+```{r}
+#model_stepwise_BIC.glm <- glm(default_payment_next_month ~ PAY_0 + LIMIT_BAL + PAY_5 + PAY_AMT2 + 
+#                                PAY_AMT1 + BILL_AMT3 + MARRIAGE + SEX + PAY_AMT3, family=binomial, #data=credit_card_data_train)
+
+model_stepwise_BIC.glm_summary<-summary(model_stepwise_BIC.glm)
+
+model_stepwise_BIC.glm_summary
+
+```
+
+
+#------------ 1. Using 80% Training Data
+
+```{r}
+
+#install.packages("rpart")
+
+```
+
+```{r}
+
+library(rpart)
+
+```
+
+
+## Fit a classification tree (CART) on your 80% training data using >rpart with default arguments. Please use 5:1 
+## cost ratio throughout. That is, you will specify "loss=matrix(c(0,5,10))" as in lab 6B notes. You may use the default 
+## cp argument without further pruning.
+
+```{r}
+
+credit_rpart <- rpart(formula = default_payment_next_month ~ . , data = credit_card_data_train, method = "class", 
+                      parms = list(loss=matrix(c(0,5,1,0), nrow = 2)))
+
+
+credit_train_prob = predict(credit_rpart, credit_card_data_train, type="prob")
+
+```
+
+### Calculating values for summary table
+
+```{r}
+
+cost <- function(r, phat){
+  weight1 <- 5
+  weight0 <- 1
+  pcut <- weight0/(weight1+weight0)
+  c1 <- (r==1)&(phat<pcut) #logical vector - true if actual 1 but predict 0
+  c0 <-(r==0)&(phat>pcut) #logical vector - true if actual 0 but predict 1
+  return(mean(weight1*c1+weight0*c0))
+}
+
+cost(credit_card_data_train$default_payment_next_month, credit_train_prob) # 0.681
+
+```
+
+
+
+#------------ 2. Plotting Classification tree
+
+## Plot your classification tree. Please give proper title and nice presentation of the tree figure output.
+
+```{r}
+
+prp(credit_rpart, extra = 1) + ggplot((title('Classification Tree')))
+
+```
+
+
+#------------ 3. Interpreting main predictor variables
+
+## Please interpret some of the main predictor variables used to split the tree. Pick one terminal node and 
+## interpret briefly of the outputs and number of observations in that particular node.
+
+
+#------------ 4. ROC Curve
+
+
+```{r}
+
+#install.packages("ROCR")
+
+```
+
+```{r}
+
+#library(ROCR)
+
+```
+
+
+## Draw ROC curve
+
+```{r}
+
+cost <- function(r, phat){
+  weight1 <- 5
+  weight0 <- 1
+  pcut <- weight0/(weight1+weight0) 
+  c1 <- (r==1)&(phat<pcut) #logical vector - true if actual 1 but predict 0
+  c0 <-(r==0)&(phat>pcut) #logical vector - true if actual 0 but predict 1
+  return(mean(weight1*c1+weight0*c0))
+}
+ 
+cost(credit_card_data_train$default_payment_next_month, predict(credit_rpart, credit_card_data_train, type="prob")) # 0.6815
+
+credit_train_pred_tree <- predict(credit_rpart, credit_card_data_train, type="prob")
+
+pred = prediction(credit_train_pred_tree[,2], credit_card_data_train$default_payment_next_month)
+
+perf = performance(pred, "tpr", "fpr")
+
+plot(perf, colorize=TRUE) + ggplot((title('ROC - In-sample')))
+
+```
+
+
+#------------ 5. AUC
+
+## Report the AUC. Is it ">0.7" with satisfactory discrimatory power?
+
+```{r}
+
+slot(performance(pred, "auc"), "y.values")[[1]] # 0.7295294
+
+```
+
+
+### END
+
